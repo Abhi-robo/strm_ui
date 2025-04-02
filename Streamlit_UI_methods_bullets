@@ -589,9 +589,11 @@ def handle_section(section_name, display_name):
             # Show "Ask Assistant" button only if a checkbox was selected
             if show_button and st.button("Run for selected prompts for checkbox"):
                 
+                # Store the current checkbox state in a temporary variable to restore later
+                temp_checkbox_state = st.session_state.results_checkboxes_state.copy()
+                temp_selected_bullets = st.session_state.selected_results_bullets.copy()
+                
                 checkbox_user_query = st.session_state.get('user_query', '')
-
-                st.write(checkbox_user_query)
                 
                 if checkbox_user_query:
                     try:
@@ -618,13 +620,26 @@ def handle_section(section_name, display_name):
                             st.session_state.current_checkbox_thread_id = thread_id  # Update current thread ID
                             st.session_state["checkbox_response"] = assistant_response
                             st.session_state["checkbox_citations"] = citations
+                            
+                            # Restore checkbox state after getting the response
+                            st.session_state.results_checkboxes_state = temp_checkbox_state
+                            st.session_state.selected_results_bullets = temp_selected_bullets
 
                             st.success("Assistant responded to your query!")
                         else:
+                            # Restore checkbox state on error
+                            st.session_state.results_checkboxes_state = temp_checkbox_state
+                            st.session_state.selected_results_bullets = temp_selected_bullets
                             st.error(response.json().get("error", "Please upload the file to start your query"))
                     except Exception as e:
+                        # Restore checkbox state on exception
+                        st.session_state.results_checkboxes_state = temp_checkbox_state
+                        st.session_state.selected_results_bullets = temp_selected_bullets
                         st.error(f"Error: {str(e)}")
                 else:
+                    # Restore checkbox state if no query
+                    st.session_state.results_checkboxes_state = temp_checkbox_state
+                    st.session_state.selected_results_bullets = temp_selected_bullets
                     st.error("Please enter a query before asking.")
 
             # Display editable text area for the query response
@@ -668,7 +683,7 @@ def handle_section(section_name, display_name):
                 st.session_state.selected_methods_items = []
                 st.session_state.results_checkboxes_state = {}
                 st.success("All selected results have been cleared.")
-                st.experimental_rerun()
+                st.rerun()  # Corrected from experimental_rerun to rerun
             
             # Display each selected result with a checkbox and a remove button
             selected_bullets_to_remove = []
@@ -699,7 +714,7 @@ def handle_section(section_name, display_name):
                     if bullet in st.session_state.selected_methods_items:
                         st.session_state.selected_methods_items.remove(bullet)
                 st.success(f"Removed {len(selected_bullets_to_remove)} item(s)")
-                st.experimental_rerun()
+                st.rerun()  # Corrected from experimental_rerun to rerun
             
             # If methods items are selected, show dropdown with appropriate prompts
             if st.session_state.selected_methods_items and len(st.session_state.selected_methods_items) > 0:
