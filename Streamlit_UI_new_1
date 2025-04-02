@@ -335,9 +335,21 @@ def handle_section(section_name, display_name):
             # Display prompt selection after all checkboxes
             if st.session_state.selected_bullet:
                 st.write("You selected:", st.session_state.selected_bullet)
-
+                
+                # Debug information - show the selected category
+                st.write("Selected category:", st.session_state.selected_category)
+                
                 # Check if the selected category is 'safety' and display appropriate prompts
-                is_safety_endpoint = st.session_state.selected_category and st.session_state.selected_category.lower() == "safety"
+                # Convert to lowercase for case-insensitive comparison
+                selected_category_lower = st.session_state.selected_category.lower() if st.session_state.selected_category else ""
+                
+                # Debug - show the lowercase category
+                st.write("Category lowercase:", selected_category_lower)
+                
+                is_safety_endpoint = "safety" in selected_category_lower
+
+                # Debug - show if it's detected as a safety endpoint
+                st.write("Is safety endpoint:", is_safety_endpoint)
 
                 # Only one of these blocks will execute based on the category
                 if is_safety_endpoint:
