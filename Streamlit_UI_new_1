@@ -33,20 +33,25 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# API Base URL
+
 API_BASE_URL = "http://localhost:5000/"
+
 
 # Initialize session state variables
 def initialize_session_state():
     default_sections = ["introduction", "methods", "discussion", "results", "conclusion"]
     
     # General session states
-    for key in ["file_name", "assistant_id", "vector_id", "current_thread_id", "current_checkbox_thread_id", "edited_response", "response", "citations", "checkbox_response", "checkbox_citations", "dependent", "checkbox_dependent", "user_query", "selected_bullet", "selected_category"]:
+    for key in ["file_name", "assistant_id", "vector_id", "current_thread_id", "current_checkbox_thread_id", 
+                "edited_response", "response", "citations", "checkbox_response", "checkbox_citations", 
+                "dependent", "checkbox_dependent", "user_query", "selected_results_bullets", "selected_methods_items"]:
         if key not in st.session_state:
             if key in ["dependent", "checkbox_dependent"]:
                 st.session_state[key] = True
+            elif key in ["selected_results_bullets", "selected_methods_items"]:
+                st.session_state[key] = []  # Initialize as empty lists
             else:
-                st.session_state[key] = "" if key not in ["selected_bullet", "selected_category"] else None
+                st.session_state[key] = ""
     
     # Section-specific session states
     for section in default_sections:
@@ -58,7 +63,8 @@ def initialize_session_state():
             f"{section}_prompt",
             f"{section}_chat",
             f"{section}_chat_citations",
-            f"initialise_new_chat_for{section}_thread_id",
+            f"initialise_new_chat_for{section}_thread_id",  # Add this line
+
             f"initialise_new_chat_for_outside_{section}_thread_id",
             f"outside_{section}_thread_id",
             f"outside_{section}_citations",
@@ -73,20 +79,27 @@ def initialize_session_state():
     for key in ["selected_queries_outside", "selected_responses_outside", "results_outside", "final_edited_responses_outside", "view_final_edited_outside", "show_results", "show_selected_query", "assistant_response"]:
         if key not in st.session_state:
             if key == "view_final_edited_outside":
-                st.session_state[key] = False
+                st.session_state[key] = False  # Boolean value for "view_final_edited_outside"
             else:
-                st.session_state[key] = []
+                st.session_state[key] = []  # Default to empty list for the others
+
 
 initialize_session_state()
+
+
 
 # Function to clear session state when a new file is uploaded
 def clear_session():
     # General session states to clear
-    for key in ["file_name", "assistant_id", "vector_id", "current_thread_id", "current_checkbox_thread_id", "edited_response", "response", "citations", "checkbox_response", "checkbox_citations", "dependent", "checkbox_dependent", "user_query", "selected_bullet", "selected_category"]:
+    for key in ["file_name", "assistant_id", "vector_id", "current_thread_id", "current_checkbox_thread_id", 
+                "edited_response", "response", "citations", "checkbox_response", "checkbox_citations", 
+                "dependent", "checkbox_dependent", "user_query", "selected_results_bullets", "selected_methods_items"]:
         if key in ["dependent", "checkbox_dependent"]:
             st.session_state[key] = True
+        elif key in ["selected_results_bullets", "selected_methods_items"]:
+            st.session_state[key] = []  # Reset as empty lists
         else:
-            st.session_state[key] = "" if key not in ["selected_bullet", "selected_category"] else None
+            st.session_state[key] = ""
     
     # Section-specific session states to clear
     default_sections = ["introduction", "methods", "discussion", "results", "conclusion"]
@@ -98,7 +111,8 @@ def clear_session():
             f"{section}_prompt",
             f"{section}_chat",
             f"{section}_chat_citations",
-            f"initialise_new_chat_for{section}_thread_id",
+            f"initialise_new_chat_for{section}_thread_id",  # Add this line to clear the new session variable
+
             f"initialise_new_chat_for_outside_{section}_thread_id",
             f"outside_{section}_thread_id",
             f"outside_{section}_citations",
@@ -109,12 +123,16 @@ def clear_session():
             st.session_state[sub_key] = [] if 'citations' in sub_key else ""
     
     # Clear additional session state variables for outside queries
-    for key in ["selected_queries_outside", "selected_responses_outside", "results_outside", "final_edited_responses_outside", "view_final_edited_outside", "show_results", "show_selected_query", "assistant_response"]:
+    for key in ["selected_queries_outside", "selected_responses_outside", "results_outside", "final_edited_responses_outside", "view_final_edited_outside",  "show_results", "show_selected_query", "assistant_response"]:
         if key in st.session_state:
             if key == "view_final_edited_outside":
-                st.session_state[key] = False
+                st.session_state[key] = False  # Reset to False
             else:
-                st.session_state[key] = []
+                st.session_state[key] = []  # Clear by setting to an empty list
+
+
+
+ 
 
 # Title and Instructions
 st.title("CLINICAL RESEARCH PAPER")
@@ -143,8 +161,9 @@ with col2:
                         st.session_state.file_name = uploaded_file.name
                         st.session_state.assistant_id = result.get("assistant_id", "")
                         st.session_state.vector_id = result.get("vector_store_id", "")
-                        st.session_state.current_thread_id = result.get("thread_id", "")
+                        st.session_state.current_thread_id = result.get("thread_id", "")  # Adjust based on your response
                     else:
+                        # Handle other response structures if necessary
                         st.success("File processed successfully!")
                 else:
                     st.error(response.json().get("error", "Failed to upload file."))
@@ -169,18 +188,25 @@ with col4:
 st.header("❓  Initiate a New General Query")
 user_query = st.text_area("Enter your query", "", height=100)
 
+
 dependent = st.checkbox("Dependent on thread", value=True)
 st.session_state["dependent"] = dependent
 
 get_dependent_status = lambda: "ON" if st.session_state['dependent'] else "OFF"
+
+# Display the conversation status
 st.write(f"Conversation: {get_dependent_status()}")
 
+
+# st.write(f"Conversation: {st.session_state['dependent']}")
 if st.button("Ask Assistant"):
     if user_query:
         try:
+            # Clear previous response and citations from the session state
             st.session_state["response"] = ""
             st.session_state["citations"] = []
 
+            # Send metadata and the user query to the backend
             payload = {
                 "question": user_query,
                 "file_name": st.session_state.file_name,
@@ -196,7 +222,7 @@ if st.button("Ask Assistant"):
                 citations = result.get("citations", [])
                 thread_id = result.get("thread_id", None)
 
-                st.session_state.current_thread_id = thread_id
+                st.session_state.current_thread_id = thread_id  # Update current thread ID
                 st.session_state["response"] = assistant_response
                 st.session_state["citations"] = citations
 
@@ -213,6 +239,10 @@ if "response" in st.session_state and st.session_state["response"]:
     st.header("💬 Response")
     response_text = st.text_area("Response:", st.session_state["response"], height=200, key="response_text")
     citations = st.session_state["citations"]
+
+    # st.markdown("**Citations:**")
+    # for citation in citations:
+    #     st.write(f"- {citation}")
 
     if st.session_state.current_thread_id:
         st.markdown(f"**Thread ID:** {st.session_state.current_thread_id}")
@@ -235,67 +265,163 @@ if "response" in st.session_state and st.session_state["response"]:
         except Exception as e:
             st.error(f"An error occurred: {e}")
 
+
+
+
+
+
+
+
+
+
 # Function to generate a unique key for each checkbox
 def generate_unique_key(*args):
+    # Use a hash of the arguments to create a unique key
     return hashlib.md5("".join(map(str, args)).encode('utf-8')).hexdigest()
 
 # Function to display endpoints without recursion
-def display_endpoints(name, item):
-    stack = [(name, item)]
+def display_endpoints(name, item, section_name="results"):
+    selected_bullet = None  # To store the selected bullet point
+    selected_category = None  # To store the selected category
+    show_button = False  # To track if we should show the button
+
+    stack = [(name, item)]  # Initialize stack with the root level
     while stack:
-        current_name, current_item = stack.pop()
+        current_name, current_item = stack.pop()  # Pop from stack for processing
         
         if isinstance(current_item, dict):
-            st.subheader(current_name)
-            st.session_state.selected_category = current_name
+            # If it's a dictionary, loop through the key-value pairs
+            st.subheader(current_name)  # Display the category name (subheader)
+            selected_category = current_name  # Capture the selected category
             for sub_key, sub_value in current_item.items():
                 if isinstance(sub_value, dict):
+                    # If the value is another dictionary, add to stack
                     stack.append((f"{sub_key} (nested dictionary)", sub_value))
                 elif isinstance(sub_value, list):
+                    # If the value is a list, process it directly
                     st.subheader(f"{sub_key} (list)")
                     for list_item in sub_value:
-                        list_item_key = generate_unique_key(sub_key, list_item)
-                        if st.checkbox(str(list_item), key=list_item_key):
-                            st.session_state.selected_bullet = str(list_item)
+                        list_item_key = generate_unique_key(section_name, sub_key, list_item)  # Ensure unique key for list items
+                        checkbox_label = str(list_item)
+                        if st.checkbox(checkbox_label, key=list_item_key):
+                            selected_bullet = checkbox_label  # Capture the selected item
+                            show_button = True  # User selected a checkbox
+                            
+                            # If in results section, add to list of selected results
+                            if section_name == "results" and checkbox_label not in st.session_state.selected_results_bullets:
+                                st.session_state.selected_results_bullets.append(checkbox_label)
                 else:
-                    sub_key_value_key = generate_unique_key(sub_key, sub_value)
-                    if st.checkbox(f"{sub_key}: {sub_value}", key=sub_key_value_key):
-                        st.session_state.selected_bullet = f"{sub_key}: {sub_value}"
+                    # Otherwise, display the key and value as a checkbox
+                    sub_key_value_key = generate_unique_key(section_name, sub_key, sub_value)  # Ensure unique key for key-value pairs
+                    checkbox_label = f"{sub_key}: {sub_value}"
+                    if st.checkbox(checkbox_label, key=sub_key_value_key):
+                        selected_bullet = checkbox_label  # Capture the selected bullet
+                        show_button = True  # User selected a checkbox
+                        
+                        # If in results section, add to list of selected results
+                        if section_name == "results" and checkbox_label not in st.session_state.selected_results_bullets:
+                            st.session_state.selected_results_bullets.append(checkbox_label)
                         
         elif isinstance(current_item, list):
-            st.subheader(current_name)
-            st.session_state.selected_category = current_name
+            # If it's a list, display each item as a checkbox
+            st.subheader(current_name)  # Display the category name (subheader)
+            selected_category = current_name  # Capture the selected category
             for list_item in current_item:
-                list_item_key = generate_unique_key(current_name, list_item)
-                if st.checkbox(str(list_item), key=list_item_key):
-                    st.session_state.selected_bullet = str(list_item)
+                list_item_key = generate_unique_key(section_name, current_name, list_item)  # Ensure unique key for list items
+                checkbox_label = str(list_item)
+                if st.checkbox(checkbox_label, key=list_item_key):
+                    selected_bullet = checkbox_label  # Capture the selected item
+                    show_button = True  # User selected a checkbox
+                    
+                    # If in results section, add to list of selected results
+                    if section_name == "results" and checkbox_label not in st.session_state.selected_results_bullets:
+                        st.session_state.selected_results_bullets.append(checkbox_label)
         
         else:
-            base_key = generate_unique_key(current_name, current_item)
-            if st.checkbox(f"{current_name}: {current_item}", key=base_key):
-                st.session_state.selected_bullet = f"{current_name}: {current_item}"
+            # Base case: Directly display the name and item as a checkbox
+            base_key = generate_unique_key(section_name, current_name, current_item)  # Ensure unique key for base case
+            checkbox_label = f"{current_name}: {current_item}"
+            if st.checkbox(checkbox_label, key=base_key):
+                selected_bullet = checkbox_label  # Capture the selected bullet
+                show_button = True  # User selected a checkbox
+                
+                # If in results section, add to list of selected results
+                if section_name == "results" and checkbox_label not in st.session_state.selected_results_bullets:
+                    st.session_state.selected_results_bullets.append(checkbox_label)
 
-# Function to check if a category is safety-related
-def is_safety_category(category):
-    """Check if a category is related to safety"""
-    if not category:
-        return False
-    
-    # Convert to string and lowercase for consistent comparison
-    category_str = str(category).lower()
-    
-    # Check if it's exactly "safety" or if it contains the word "safety"
-    # This approach is more precise than simple substring matching
-    if category_str == "safety":
-        return True
-    
-    # Check for variations like "Safety endpoints", "safety analysis", etc.
-    safety_patterns = ["safety", "toxicity", "adverse", "side effect", "tolerance", "aes"]
-    for pattern in safety_patterns:
-        if pattern in category_str:
-            return True
-    
+    # If a selection was made, show the prompt
+    if selected_bullet:
+        st.write("You selected:", selected_bullet)
+
+        # Check if the selected category is 'safety' and display appropriate prompts
+        is_safety_endpoint = selected_category.lower() == "safety"
+
+        if is_safety_endpoint:
+            prompt_selection = st.selectbox(
+                "Select a Prompt for Safety Endpoint",
+                [
+                    f"Prompt 1. Please can you describe the {selected_bullet} results relating to safety and tolerability. Referring to text and tables describing any safety or tolerability, please can you draft a paragraph describing these results and summarizing the data for it. Please can you add references to any tables or figures that would be relevant to include in a paper. Please can you provide the output as bullet points. ",
+                    
+                    f"Prompt 2: Please can you provide  the following data for each study arm as a bulleted list, relating to safety and tolerability, if it is available:\n"
+                    "1. Patient years of exposure\n"
+                    "2. The number and proportion of patients reporting at least one:\n"
+                    "    a. Adverse event\n"
+                    "    b. Treatment-emergent adverse event\n"
+                    "    c. Serious adverse event\n"
+                    "    d. Adverse event resulting in study discontinuation\n"
+                    "    e. Death\n"
+                    "3. The number and proportion of patients reporting at least one: Severe adverse event (please note that serious adverse events are different from severe adverse events)",
+                    
+                    f"Prompt 3: For each study arm please can you provide details of the 10 most common treatment emergent adverse events. If an adverse event is common in any one arm please provide the numbers for that adverse event for all study arms.",
+                    
+                    f"Prompt 4: For each study arm please can you provide details of the serious adverse events that were reported. For each and every serious adverse event please provide the number and proportion of patients reporting it and provide a summary of the outcomes of the events.",
+                    
+                    f"Prompt 5: For each study arm please can you provide details of the adverse events leading to discontinuation that were reported. For each and every adverse event please provide the number and proportion of patients reporting it and provide a summary of the outcomes of the events."
+                ]
+            )
+        else:
+            prompt_selection = st.selectbox(
+                "Select a Prompt",
+                [
+                    f"Prompt 1: Please can you describe the results for the endpoint of {selected_bullet}. Refer to text and tables describing all analyses, please can you draft a paragraph describing this endpoint and summarizing the outcomes for it. Please can you add references to any tables or figures that would be relevant to include in a paper. Please can you provide the output as bullet points",
+
+                    f"Prompt 2: Please can you describe the results for any subgroup analyses of the endpoint of {selected_bullet}. Refer to text and tables describing all analyses, please can you draft a paragraph describing this endpoint and summarizing the outcomes for it. Please can you add references to any tables or figures that would be relevant to include in a paper. Please can you provide the output as bullet points"
+                ]
+            )
+
+        st.write("Selected Prompt:")
+        st.markdown(prompt_selection)
+
+        # Set user_query as the selected prompt
+        st.session_state['user_query'] = prompt_selection  # Save the selected prompt as user_query
+
+        # Return the show_button flag to control the button visibility
+        return show_button
     return False
+
+
+# display_name = "Results"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # Reusable function to handle each section
 def handle_section(section_name, display_name):
@@ -306,14 +432,17 @@ def handle_section(section_name, display_name):
         if generate_button:
             if st.session_state.assistant_id and st.session_state.vector_id:
                 try:
+                    # Clear previous data for the section
                     st.session_state[section_name] = ""
                     st.session_state[f"{section_name}_citations"] = []
                     
+                    # Prepare the payload
                     payload = {
                         'assistant_id': st.session_state.assistant_id,
                         'vector_id': st.session_state.vector_id
                     }
 
+                    # Send the request to the backend
                     response = requests.post(f"{API_BASE_URL}/{section_name}/generate_results_of_checkbox_prompts", json=payload)
 
                     if response.status_code == 200:
@@ -333,6 +462,7 @@ def handle_section(section_name, display_name):
                 st.error("Please upload your paper to generate this section.")
 
         if st.session_state[section_name]:
+            # Editable text area for the section
             edited_text = st.text_area(f"{display_name}:", st.session_state[section_name], key=f"text_{section_name}")
 
         if st.session_state[section_name]:
@@ -342,133 +472,210 @@ def handle_section(section_name, display_name):
 
             if match:
                 endpoints_str = match.group(1)
+                # Convert the string representation to an actual Python dictionary
                 endpoints_dict = ast.literal_eval(endpoints_str)
                 response_dict = endpoints_dict
+                # st.write(endpoints_dict)
             else:
                 st.write("No match found.")
-                return  # Exit early if no endpoints found
+                return  # Exit if no endpoints found
 
+            # Start the Streamlit app
             st.title("Endpoints")
+
+            # Track whether the "Ask Assistant" button should be displayed
+            show_button = False
 
             # Output the keys and their corresponding values
             for major_category, endpoints_dict in response_dict.items():
-                display_endpoints(major_category, endpoints_dict)
+                show_button |= display_endpoints(major_category, endpoints_dict, section_name="results")
 
-            # Display only if a checkbox is selected
-            if st.session_state.selected_bullet:
-                st.write("You selected:", st.session_state.selected_bullet)
-                
+            if show_button:
                 checkbox_dependent = st.checkbox("Dependent on threads", value=True)
                 st.session_state["checkbox_dependent"] = checkbox_dependent
 
                 get_checkbox_dependent_status = lambda: "ON" if st.session_state['checkbox_dependent'] else "OFF"
-                st.write(f"Conversation: {get_checkbox_dependent_status()}")
-                
-                # Determine which prompts to show based on category
-                safety_endpoint = is_safety_category(st.session_state.selected_category)
-                
-                # Different prompts based on safety vs. other endpoints
-                if safety_endpoint:
-                    prompt_label = "Select a Prompt for Safety Endpoint"
-                    prompt_options = [
-                        f"Prompt 1. Please can you describe the {st.session_state.selected_bullet} results relating to safety and tolerability. Referring to text and tables describing any safety or tolerability, please can you draft a paragraph describing these results and summarizing the data for it. Please can you add references to any tables or figures that would be relevant to include in a paper. Please can you provide the output as bullet points. ",
-                        
-                        f"Prompt 2: Please can you provide  the following data for each study arm as a bulleted list, relating to safety and tolerability, if it is available:\n"
-                        "1. Patient years of exposure\n"
-                        "2. The number and proportion of patients reporting at least one:\n"
-                        "    a. Adverse event\n"
-                        "    b. Treatment-emergent adverse event\n"
-                        "    c. Serious adverse event\n"
-                        "    d. Adverse event resulting in study discontinuation\n"
-                        "    e. Death\n"
-                        "3. The number and proportion of patients reporting at least one: Severe adverse event (please note that serious adverse events are different from severe adverse events)",
-                        
-                        f"Prompt 3: For each study arm please can you provide details of the 10 most common treatment emergent adverse events. If an adverse event is common in any one arm please provide the numbers for that adverse event for all study arms.",
-                        
-                        f"Prompt 4: For each study arm please can you provide details of the serious adverse events that were reported. For each and every serious adverse event please provide the number and proportion of patients reporting it and provide a summary of the outcomes of the events.",
-                        
-                        f"Prompt 5: For each study arm please can you provide details of the adverse events leading to discontinuation that were reported. For each and every adverse event please provide the number and proportion of patients reporting it and provide a summary of the outcomes of the events."
-                    ]
-                else:
-                    prompt_label = "Select a Prompt"
-                    prompt_options = [
-                        f"Prompt 1: Please can you describe the results for the endpoint of {st.session_state.selected_bullet}. Refer to text and tables describing all analyses, please can you draft a paragraph describing this endpoint and summarizing the outcomes for it. Please can you add references to any tables or figures that would be relevant to include in a paper. Please can you provide the output as bullet points",
 
-                        f"Prompt 2: Please can you describe the results for any subgroup analyses of the endpoint of {st.session_state.selected_bullet}. Refer to text and tables describing all analyses, please can you draft a paragraph describing this endpoint and summarizing the outcomes for it. Please can you add references to any tables or figures that would be relevant to include in a paper. Please can you provide the output as bullet points"
-                    ]
+                # Display the conversation status
+                st.write(f"Conversation: {get_checkbox_dependent_status()}")
+
+            # Show "Ask Assistant" button only if a checkbox was selected
+            if show_button and st.button("Run for selected prompts for checkbox"):
                 
-                # Create the selectbox with the appropriate label and options
-                prompt_selection = st.selectbox(
-                    prompt_label,
-                    prompt_options,
-                    key=f"prompt_selection_{safety_endpoint}"
+                checkbox_user_query = st.session_state.get('user_query', '')
+
+                st.write(checkbox_user_query)
+                
+                if checkbox_user_query:
+                    try:
+                        # Clear previous response and citations from the session state
+                        st.session_state["checkbox_response"] = ""
+                        st.session_state["checkbox_citations"] = []
+
+                        # Send metadata and the user query to the backend
+                        payload = {
+                            "question": checkbox_user_query,
+                            "file_name": st.session_state.file_name,
+                            "assistant_id": st.session_state.assistant_id,
+                            "vector_id": st.session_state.vector_id,
+                            "current_thread_id": st.session_state.current_checkbox_thread_id or None,
+                            "dependent": st.session_state["checkbox_dependent"], 
+                        }
+                        response = requests.post(f"{API_BASE_URL}/query", json=payload)
+                        if response.status_code == 200:
+                            result = response.json()
+                            assistant_response = result.get("response", "")
+                            citations = result.get("citations", [])
+                            thread_id = result.get("thread_id", None)
+
+                            st.session_state.current_checkbox_thread_id = thread_id  # Update current thread ID
+                            st.session_state["checkbox_response"] = assistant_response
+                            st.session_state["checkbox_citations"] = citations
+
+                            st.success("Assistant responded to your query!")
+                        else:
+                            st.error(response.json().get("error", "Please upload the file to start your query"))
+                    except Exception as e:
+                        st.error(f"Error: {str(e)}")
+                else:
+                    st.error("Please enter a query before asking.")
+
+            # Display editable text area for the query response
+            if st.session_state["checkbox_response"]:
+            
+                st.header("💬 Response")
+                response_text = st.text_area("Response:", st.session_state["checkbox_response"], height=200, key="checkbox_response_text")
+                citations = st.session_state["checkbox_citations"]
+
+                if st.session_state.current_checkbox_thread_id:
+                    st.markdown(f"**Thread ID:** {st.session_state.current_checkbox_thread_id}")
+
+                if "user_query" in st.session_state and st.session_state["checkbox_response"]:
+
+                    # Save Response Button
+                    if st.button("Save Response", key="save_checkbox_response_button"): 
+                        payload = {
+                            'file_name': st.session_state.file_name,
+                            'user_query': st.session_state.user_query,
+                            'assistant_response': st.session_state.checkbox_response,
+                            'citations': st.session_state.checkbox_citations,
+                            'thread_id': st.session_state.current_checkbox_thread_id
+                        }
+                        try:
+                            save_response = requests.post(f"{API_BASE_URL}/save_checkbox_response", json=payload)
+                            if save_response.status_code == 200:
+                                st.success("Response saved successfully!")
+                            else:
+                                st.error("Error saving response.")
+                        except Exception as e:
+                            st.error(f"An error occurred: {e}")
+
+    elif section_name == "methods":
+        # If there are selected results bullets, display them in the methods section
+        if st.session_state.selected_results_bullets and len(st.session_state.selected_results_bullets) > 0:
+            st.subheader("Selected Results Bullets")
+            
+            # Display checkboxes for each selected result bullet
+            for result_bullet in st.session_state.selected_results_bullets:
+                bullet_key = generate_unique_key("methods_selection", result_bullet)
+                if st.checkbox(result_bullet, key=bullet_key):
+                    if result_bullet not in st.session_state.selected_methods_items:
+                        st.session_state.selected_methods_items.append(result_bullet)
+            
+            # If methods items are selected, show dropdown with appropriate prompts
+            if st.session_state.selected_methods_items and len(st.session_state.selected_methods_items) > 0:
+                st.subheader("Selected Methods Items")
+                
+                # Display the selected methods items
+                for item in st.session_state.selected_methods_items:
+                    st.write(f"- {item}")
+                
+                # Create a comma-separated list of selected items for the prompt
+                selected_items_text = ", ".join(st.session_state.selected_methods_items)
+                
+                # Show dropdown with prompts for methods section
+                methods_prompt = st.selectbox(
+                    "Select a Prompt for Methods Analysis",
+                    [
+                        f"Prompt 1: Please describe the methods used to analyze {selected_items_text}. Include details on study design, statistical approaches, and any specific techniques employed.",
+                        
+                        f"Prompt 2: For the endpoints {selected_items_text}, please provide a detailed explanation of the measurement techniques, data collection methods, and analysis protocols used.",
+                        
+                        f"Prompt 3: Please explain the methodological considerations for analyzing {selected_items_text}, including any adjustments made for confounding variables or bias."
+                    ],
+                    key="methods_prompt_selection"
                 )
                 
-                # Set user_query as the selected prompt
-                st.session_state['user_query'] = prompt_selection
+                st.write("Selected Methods Prompt:")
+                st.markdown(methods_prompt)
                 
-                # Now the Run button for selected prompts
-                if st.button("Run for selected prompts for checkbox"):
-                    checkbox_user_query = st.session_state.get('user_query', '')
+                # Set user_query for methods as the selected prompt
+                st.session_state['methods_query'] = methods_prompt
+                
+                # Add a button to run the methods query
+                if st.button("Run Methods Analysis", key="run_methods_analysis"):
+                    methods_query = st.session_state.get('methods_query', '')
                     
-                    if checkbox_user_query:
+                    if methods_query:
                         try:
-                            st.session_state["checkbox_response"] = ""
-                            st.session_state["checkbox_citations"] = []
-
+                            # Clear previous response for methods
+                            st.session_state["methods_response"] = ""
+                            st.session_state["methods_citations"] = []
+                            
+                            # Send request to backend
                             payload = {
-                                "question": checkbox_user_query,
+                                "question": methods_query,
                                 "file_name": st.session_state.file_name,
                                 "assistant_id": st.session_state.assistant_id,
                                 "vector_id": st.session_state.vector_id,
-                                "current_thread_id": st.session_state.current_checkbox_thread_id or None,
-                                "dependent": st.session_state["checkbox_dependent"], 
+                                "current_thread_id": st.session_state.get("methods_thread_id") or None,
+                                "dependent": True,
                             }
+                            
                             response = requests.post(f"{API_BASE_URL}/query", json=payload)
                             if response.status_code == 200:
                                 result = response.json()
-                                assistant_response = result.get("response", "")
+                                methods_response = result.get("response", "")
                                 citations = result.get("citations", [])
                                 thread_id = result.get("thread_id", None)
-
-                                st.session_state.current_checkbox_thread_id = thread_id
-                                st.session_state["checkbox_response"] = assistant_response
-                                st.session_state["checkbox_citations"] = citations
-
-                                st.success("Assistant responded to your query!")
+                                
+                                st.session_state["methods_thread_id"] = thread_id
+                                st.session_state["methods_response"] = methods_response
+                                st.session_state["methods_citations"] = citations
+                                
+                                st.success("Methods analysis completed!")
                             else:
-                                st.error(response.json().get("error", "Please upload the file to start your query"))
+                                st.error(response.json().get("error", "Failed to process methods query"))
                         except Exception as e:
                             st.error(f"Error: {str(e)}")
                     else:
-                        st.error("Please select a prompt before processing.")
-
-                # Display editable text area for the query response
-                if st.session_state["checkbox_response"]:
-                    st.header("💬 Response")
-                    response_text = st.text_area("Response:", st.session_state["checkbox_response"], height=200, key="checkbox_response_text")
-                    citations = st.session_state["checkbox_citations"]
-
-                    if st.session_state.current_checkbox_thread_id:
-                        st.markdown(f"**Thread ID:** {st.session_state.current_checkbox_thread_id}")
-
-                    if "user_query" in st.session_state and st.session_state["checkbox_response"]:
-                        if st.button("Save Response", key="save_checkbox_response_button"): 
-                            payload = {
-                                'file_name': st.session_state.file_name,
-                                'user_query': st.session_state.user_query,
-                                'assistant_response': st.session_state.checkbox_response,
-                                'citations': st.session_state.checkbox_citations,
-                                'thread_id': st.session_state.current_checkbox_thread_id
-                            }
-                            try:
-                                save_response = requests.post(f"{API_BASE_URL}/save_checkbox_response", json=payload)
-                                if save_response.status_code == 200:
-                                    st.success("Response saved successfully!")
-                                else:
-                                    st.error("Error saving response.")
-                            except Exception as e:
-                                st.error(f"An error occurred: {e}")
+                        st.error("Please select a methods prompt before running analysis.")
+                
+                # Display methods response if available
+                if "methods_response" in st.session_state and st.session_state["methods_response"]:
+                    st.header("💬 Methods Response")
+                    methods_text = st.text_area("Response:", st.session_state["methods_response"], height=200, key="methods_response_text")
+                    
+                    if st.session_state.get("methods_thread_id"):
+                        st.markdown(f"**Thread ID:** {st.session_state['methods_thread_id']}")
+                    
+                    # Save Methods Response Button
+                    if st.button("Save Methods Response", key="save_methods_response_button"):
+                        payload = {
+                            'file_name': st.session_state.file_name,
+                            'user_query': st.session_state.get('methods_query', ''),
+                            'assistant_response': methods_text,
+                            'citations': st.session_state.get("methods_citations", []),
+                            'thread_id': st.session_state.get("methods_thread_id")
+                        }
+                        try:
+                            save_response = requests.post(f"{API_BASE_URL}/save_response", json=payload)
+                            if save_response.status_code == 200:
+                                st.success("Methods response saved successfully!")
+                            else:
+                                st.error("Error saving methods response.")
+                        except Exception as e:
+                            st.error(f"An error occurred: {e}")
 
     # Chat Functionality
     with st.expander(f"Initialise New chat for {display_name}"):
@@ -477,6 +684,7 @@ def handle_section(section_name, display_name):
         if st.button("Run", key=f"send_message_outside_{section_name}"):
             if user_message and st.session_state.assistant_id and st.session_state.vector_id:
                 try:
+                    # Prepare the payload
                     payload = {
                         'assistant_id': st.session_state.assistant_id,
                         'vector_id': st.session_state.vector_id,
@@ -484,6 +692,7 @@ def handle_section(section_name, display_name):
                         'message': user_message
                     }
 
+                    # Send the request to the backend
                     response = requests.post(f"{API_BASE_URL}/{section_name}/chat_{section_name}", json=payload)
 
                     if response.status_code == 200:
@@ -506,6 +715,7 @@ def handle_section(section_name, display_name):
             chat_citations = st.session_state[f"{section_name}_chat_citations"]
             st.write(f"thread ID {st.session_state[f'initialise_new_chat_for_outside_{section_name}_thread_id']}")
 
+            # Save Chat Button
             if st.button(f"Save {display_name} Chat", key=f"save_chat_outside_{section_name}"):
                 payload = {
                     'file_name': st.session_state.file_name,
@@ -523,6 +733,10 @@ def handle_section(section_name, display_name):
                 except Exception as e:
                     st.error(f"An error occurred: {e}")
 
+
+
+
+
 # Tabs for Document Sections
 st.header("📄 Document Sections")
 tabs = st.tabs(["**Results**", "**Methods**", "**Introduction**", "**Discussion**", "**Conclusion**"])
@@ -532,4 +746,17 @@ display_names = ["Results", "Methods", "Introduction", "Discussion", "Conclusion
 
 for tab, section, display_name in zip(tabs, sections, display_names):
     with tab:
-        handle_section(section, display_name) 
+        handle_section(section, display_name)
+
+
+
+
+
+
+
+
+
+
+
+
+
