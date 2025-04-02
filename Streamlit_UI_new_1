@@ -332,26 +332,21 @@ def handle_section(section_name, display_name):
             for major_category, endpoints_dict in response_dict.items():
                 display_endpoints(major_category, endpoints_dict)
 
-            # Display prompt selection after all checkboxes
+            # Display only if a checkbox is selected
             if st.session_state.selected_bullet:
                 st.write("You selected:", st.session_state.selected_bullet)
                 
-                # Debug information - show the selected category
-                st.write("Selected category:", st.session_state.selected_category)
+                checkbox_dependent = st.checkbox("Dependent on threads", value=True)
+                st.session_state["checkbox_dependent"] = checkbox_dependent
+
+                get_checkbox_dependent_status = lambda: "ON" if st.session_state['checkbox_dependent'] else "OFF"
+                st.write(f"Conversation: {get_checkbox_dependent_status()}")
                 
-                # Check if the selected category is 'safety' and display appropriate prompts
-                # Convert to lowercase for case-insensitive comparison
+                # Now we'll add the prompt selection here, just before the Run button
+                # First, determine which prompts to show based on category
                 selected_category_lower = st.session_state.selected_category.lower() if st.session_state.selected_category else ""
-                
-                # Debug - show the lowercase category
-                st.write("Category lowercase:", selected_category_lower)
-                
                 is_safety_endpoint = "safety" in selected_category_lower
-
-                # Debug - show if it's detected as a safety endpoint
-                st.write("Is safety endpoint:", is_safety_endpoint)
-
-                # Only one of these blocks will execute based on the category
+                
                 if is_safety_endpoint:
                     prompt_selection = st.selectbox(
                         "Select a Prompt for Safety Endpoint",
@@ -377,7 +372,6 @@ def handle_section(section_name, display_name):
                         key="safety_prompt_selection"
                     )
                 else:
-                    # Regular prompts for non-safety endpoints
                     prompt_selection = st.selectbox(
                         "Select a Prompt",
                         [
@@ -387,20 +381,12 @@ def handle_section(section_name, display_name):
                         ],
                         key="regular_prompt_selection"
                     )
-
-                st.write("Selected Prompt:")
-                st.markdown(prompt_selection)
-
+                
                 # Set user_query as the selected prompt
                 st.session_state['user_query'] = prompt_selection
-
-                checkbox_dependent = st.checkbox("Dependent on threads", value=True)
-                st.session_state["checkbox_dependent"] = checkbox_dependent
-
-                get_checkbox_dependent_status = lambda: "ON" if st.session_state['checkbox_dependent'] else "OFF"
-                st.write(f"Conversation: {get_checkbox_dependent_status()}")
-
-                if st.button("Run for selected prompts"):
+                
+                # Now the Run button for selected prompts
+                if st.button("Run for selected prompts for checkbox"):
                     checkbox_user_query = st.session_state.get('user_query', '')
                     
                     if checkbox_user_query:
@@ -433,7 +419,7 @@ def handle_section(section_name, display_name):
                         except Exception as e:
                             st.error(f"Error: {str(e)}")
                     else:
-                        st.error("Please enter a query before asking.")
+                        st.error("Please select a prompt before processing.")
 
                 # Display editable text area for the query response
                 if st.session_state["checkbox_response"]:
