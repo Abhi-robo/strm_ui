@@ -275,6 +275,28 @@ def display_endpoints(name, item):
             if st.checkbox(f"{current_name}: {current_item}", key=base_key):
                 st.session_state.selected_bullet = f"{current_name}: {current_item}"
 
+# Function to check if a category is safety-related
+def is_safety_category(category):
+    """Check if a category is related to safety"""
+    if not category:
+        return False
+    
+    # Convert to string and lowercase for consistent comparison
+    category_str = str(category).lower()
+    
+    # Check if it's exactly "safety" or if it contains the word "safety"
+    # This approach is more precise than simple substring matching
+    if category_str == "safety":
+        return True
+    
+    # Check for variations like "Safety endpoints", "safety analysis", etc.
+    safety_patterns = ["safety", "toxicity", "adverse", "side effect", "tolerance", "aes"]
+    for pattern in safety_patterns:
+        if pattern in category_str:
+            return True
+    
+    return False
+
 # Reusable function to handle each section
 def handle_section(section_name, display_name):
     st.subheader(display_name)
@@ -342,16 +364,11 @@ def handle_section(section_name, display_name):
                 get_checkbox_dependent_status = lambda: "ON" if st.session_state['checkbox_dependent'] else "OFF"
                 st.write(f"Conversation: {get_checkbox_dependent_status()}")
                 
-                # Now we'll add the prompt selection here, just before the Run button
-                # First, determine which prompts to show based on category
-                if st.session_state.selected_category:
-                    selected_category = str(st.session_state.selected_category).lower()
-                    is_safety_endpoint = "safety" in selected_category
-                else:
-                    is_safety_endpoint = False
+                # Determine which prompts to show based on category
+                safety_endpoint = is_safety_category(st.session_state.selected_category)
                 
-                # Different selectbox labels and prompts based on safety vs. other endpoints
-                if is_safety_endpoint:
+                # Different prompts based on safety vs. other endpoints
+                if safety_endpoint:
                     prompt_label = "Select a Prompt for Safety Endpoint"
                     prompt_options = [
                         f"Prompt 1. Please can you describe the {st.session_state.selected_bullet} results relating to safety and tolerability. Referring to text and tables describing any safety or tolerability, please can you draft a paragraph describing these results and summarizing the data for it. Please can you add references to any tables or figures that would be relevant to include in a paper. Please can you provide the output as bullet points. ",
@@ -380,10 +397,11 @@ def handle_section(section_name, display_name):
                         f"Prompt 2: Please can you describe the results for any subgroup analyses of the endpoint of {st.session_state.selected_bullet}. Refer to text and tables describing all analyses, please can you draft a paragraph describing this endpoint and summarizing the outcomes for it. Please can you add references to any tables or figures that would be relevant to include in a paper. Please can you provide the output as bullet points"
                     ]
                 
+                # Create the selectbox with the appropriate label and options
                 prompt_selection = st.selectbox(
                     prompt_label,
                     prompt_options,
-                    key=f"prompt_selection_{is_safety_endpoint}"
+                    key=f"prompt_selection_{safety_endpoint}"
                 )
                 
                 # Set user_query as the selected prompt
