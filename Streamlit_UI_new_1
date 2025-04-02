@@ -344,43 +344,47 @@ def handle_section(section_name, display_name):
                 
                 # Now we'll add the prompt selection here, just before the Run button
                 # First, determine which prompts to show based on category
-                selected_category_lower = st.session_state.selected_category.lower() if st.session_state.selected_category else ""
-                is_safety_endpoint = "safety" in selected_category_lower
-                
-                if is_safety_endpoint:
-                    prompt_selection = st.selectbox(
-                        "Select a Prompt for Safety Endpoint",
-                        [
-                            f"Prompt 1. Please can you describe the {st.session_state.selected_bullet} results relating to safety and tolerability. Referring to text and tables describing any safety or tolerability, please can you draft a paragraph describing these results and summarizing the data for it. Please can you add references to any tables or figures that would be relevant to include in a paper. Please can you provide the output as bullet points. ",
-                            
-                            f"Prompt 2: Please can you provide  the following data for each study arm as a bulleted list, relating to safety and tolerability, if it is available:\n"
-                            "1. Patient years of exposure\n"
-                            "2. The number and proportion of patients reporting at least one:\n"
-                            "    a. Adverse event\n"
-                            "    b. Treatment-emergent adverse event\n"
-                            "    c. Serious adverse event\n"
-                            "    d. Adverse event resulting in study discontinuation\n"
-                            "    e. Death\n"
-                            "3. The number and proportion of patients reporting at least one: Severe adverse event (please note that serious adverse events are different from severe adverse events)",
-                            
-                            f"Prompt 3: For each study arm please can you provide details of the 10 most common treatment emergent adverse events. If an adverse event is common in any one arm please provide the numbers for that adverse event for all study arms.",
-                            
-                            f"Prompt 4: For each study arm please can you provide details of the serious adverse events that were reported. For each and every serious adverse event please provide the number and proportion of patients reporting it and provide a summary of the outcomes of the events.",
-                            
-                            f"Prompt 5: For each study arm please can you provide details of the adverse events leading to discontinuation that were reported. For each and every adverse event please provide the number and proportion of patients reporting it and provide a summary of the outcomes of the events."
-                        ],
-                        key="safety_prompt_selection"
-                    )
+                if st.session_state.selected_category:
+                    selected_category = str(st.session_state.selected_category).lower()
+                    is_safety_endpoint = "safety" in selected_category
                 else:
-                    prompt_selection = st.selectbox(
-                        "Select a Prompt",
-                        [
-                            f"Prompt 1: Please can you describe the results for the endpoint of {st.session_state.selected_bullet}. Refer to text and tables describing all analyses, please can you draft a paragraph describing this endpoint and summarizing the outcomes for it. Please can you add references to any tables or figures that would be relevant to include in a paper. Please can you provide the output as bullet points",
+                    is_safety_endpoint = False
+                
+                # Different selectbox labels and prompts based on safety vs. other endpoints
+                if is_safety_endpoint:
+                    prompt_label = "Select a Prompt for Safety Endpoint"
+                    prompt_options = [
+                        f"Prompt 1. Please can you describe the {st.session_state.selected_bullet} results relating to safety and tolerability. Referring to text and tables describing any safety or tolerability, please can you draft a paragraph describing these results and summarizing the data for it. Please can you add references to any tables or figures that would be relevant to include in a paper. Please can you provide the output as bullet points. ",
+                        
+                        f"Prompt 2: Please can you provide  the following data for each study arm as a bulleted list, relating to safety and tolerability, if it is available:\n"
+                        "1. Patient years of exposure\n"
+                        "2. The number and proportion of patients reporting at least one:\n"
+                        "    a. Adverse event\n"
+                        "    b. Treatment-emergent adverse event\n"
+                        "    c. Serious adverse event\n"
+                        "    d. Adverse event resulting in study discontinuation\n"
+                        "    e. Death\n"
+                        "3. The number and proportion of patients reporting at least one: Severe adverse event (please note that serious adverse events are different from severe adverse events)",
+                        
+                        f"Prompt 3: For each study arm please can you provide details of the 10 most common treatment emergent adverse events. If an adverse event is common in any one arm please provide the numbers for that adverse event for all study arms.",
+                        
+                        f"Prompt 4: For each study arm please can you provide details of the serious adverse events that were reported. For each and every serious adverse event please provide the number and proportion of patients reporting it and provide a summary of the outcomes of the events.",
+                        
+                        f"Prompt 5: For each study arm please can you provide details of the adverse events leading to discontinuation that were reported. For each and every adverse event please provide the number and proportion of patients reporting it and provide a summary of the outcomes of the events."
+                    ]
+                else:
+                    prompt_label = "Select a Prompt"
+                    prompt_options = [
+                        f"Prompt 1: Please can you describe the results for the endpoint of {st.session_state.selected_bullet}. Refer to text and tables describing all analyses, please can you draft a paragraph describing this endpoint and summarizing the outcomes for it. Please can you add references to any tables or figures that would be relevant to include in a paper. Please can you provide the output as bullet points",
 
-                            f"Prompt 2: Please can you describe the results for any subgroup analyses of the endpoint of {st.session_state.selected_bullet}. Refer to text and tables describing all analyses, please can you draft a paragraph describing this endpoint and summarizing the outcomes for it. Please can you add references to any tables or figures that would be relevant to include in a paper. Please can you provide the output as bullet points"
-                        ],
-                        key="regular_prompt_selection"
-                    )
+                        f"Prompt 2: Please can you describe the results for any subgroup analyses of the endpoint of {st.session_state.selected_bullet}. Refer to text and tables describing all analyses, please can you draft a paragraph describing this endpoint and summarizing the outcomes for it. Please can you add references to any tables or figures that would be relevant to include in a paper. Please can you provide the output as bullet points"
+                    ]
+                
+                prompt_selection = st.selectbox(
+                    prompt_label,
+                    prompt_options,
+                    key=f"prompt_selection_{is_safety_endpoint}"
+                )
                 
                 # Set user_query as the selected prompt
                 st.session_state['user_query'] = prompt_selection
