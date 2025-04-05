@@ -278,3 +278,56 @@ def get_endpoints_by_category(db, file_name, category=None):
                                 for i, citation in enumerate(selected_endpoint['citations']):
                                     st.markdown(f"{i+1}. {citation}")
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                    if st.button("Save Response", key="save_checkbox_response_button"): 
+                        payload = {
+                            'file_name': st.session_state.file_name,
+                            'user_query': st.session_state.user_query,
+                            'assistant_response': st.session_state.checkbox_response,
+                            'citations': st.session_state.checkbox_citations,
+                            'thread_id': st.session_state.current_checkbox_thread_id,
+                            'selected_bullet': st.session_state.selected_bullet,
+                            'selected_category': st.session_state.selected_category
+                        }
+                        try:
+                            # Use the new endpoint-specific API
+                            save_response = requests.post(f"{API_BASE_URL}/save_endpoint_response", json=payload)
+                            if save_response.status_code == 200:
+                                st.success("Endpoint response saved successfully!")
+                            else:
+                                st.error(f"Error saving response: {save_response.json().get('error', 'Unknown error')}")
+                        except Exception as e:
+                            st.error(f"An error occurred: {e}")
+
