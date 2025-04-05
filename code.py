@@ -789,3 +789,177 @@ def get_endpoints_for_methods():
                         st.markdown(f"{i+1}. {citation}")
                 else:
                     st.info("No citations found in the generated content.")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@methods_bp.route('/get_endpoints_for_methods', methods=['GET'])
+def get_endpoints_for_methods():
+    """
+    Retrieve all endpoints from the endpoints collection for display in the Methods section.
+    """
+    try:
+        # Get file_name from query parameters
+        file_name = request.args.get('file_name')
+        
+        if not file_name:
+            return jsonify({"error": "file_name parameter is required"}), 400
+            
+        # Connect to MongoDB
+        db = connect_mongo()
+        
+        # Access the endpoints collection
+        collection = db["endpoints"]
+        
+        # Query all endpoints for this file - make sure we're filtering by the file_name
+        file_filter = {"file_name": file_name}
+        endpoints = list(collection.find(file_filter).sort("endpoint_category", 1))
+        
+        # Log the search and results
+        logger.info(f"Searching for endpoints with file_name: {file_name}")
+        logger.info(f"Found {len(endpoints)} endpoints for file: {file_name}")
+        
+        # Process endpoints into a more structured format by category
+        categorized_endpoints = {}
+        
+        for endpoint in endpoints:
+            # Convert ObjectId to string for JSON serialization
+            if "_id" in endpoint:
+                endpoint["_id"] = str(endpoint["_id"])
+            
+            # Get the category
+            category = endpoint.get("endpoint_category")
+            
+            # Initialize the category list if it doesn't exist
+            if category not in categorized_endpoints:
+                categorized_endpoints[category] = []
+            
+            # Add the endpoint to its category
+            categorized_endpoints[category].append({
+                "endpoint_id": endpoint.get("endpoint_id"),
+                "endpoint_name": endpoint.get("endpoint_name"),
+                "assistant_response": endpoint.get("assistant_response"),
+                "updated_at": endpoint.get("updated_at").isoformat() if endpoint.get("updated_at") else None
+            })
+        
+        return jsonify({
+            "endpoints": categorized_endpoints,
+            "count": len(endpoints),
+            "file_name": file_name  # Return file_name for confirmation
+        }), 200
+    
+    except Exception as e:
+        logger.error(f"Error in get_endpoints_for_methods: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+@methods_bp.route('/generate_methods_from_endpoints', methods=['POST'])
+def generate_methods_from_endpoints():
+    """
+    Generate Methods section content based on selected endpoints.
+    """
+    try:
+        data = request.json
+        assistant_id = data.get('assistant_id')
+        vector_id = data.get('vector_id')
+        endpoints = data.get('endpoints', [])
+        file_name = data.get('file_name')
+        
+        if not assistant_id or not vector_id:
+            return jsonify({"error": "Missing assistant_id or vector_id"}), 400
+            
+        if not endpoints:
+            return jsonify({"error": "No endpoints provided"}), 400
+            
+        if not file_name:
+            return jsonify({"error": "Missing file_name"}), 400
+            
+        # Log received data
+        logger.info(f"Generating methods for file: {file_name}")
+        logger.info(f"Number of endpoints: {len(endpoints)}")
+        
+        # Initialize OpenAI client
+        client = OpenAI()
+        
+        # Initialize AssistantSession
+        assistant_session = AssistantSession(client, assistant_id, vector_id)
+        
+        # Create a prompt that incorporates the endpoint data
+        endpoint_details = []
+        for endpoint in endpoints:
+            endpoint_name = endpoint.get('endpoint_name')
+            endpoint_category = endpoint.get('endpoint_id', '').split('_')[1] if endpoint.get('endpoint_id') else 'Unknown'
+            endpoint_response = endpoint.get('assistant_response')
+            
+            # Add formatted endpoint details to the list
+            endpoint_details.append(f"Category: {endpoint_category}\nEndpoint: {endpoint_name}\nDetails: {endpoint_response}\n")
+        
+        # Combine all endpoint details
+        all_endpoint_details = "\n\n".join(endpoint_details)
+        
+        # Create the main prompt for methods generation, including file name
+        methods_prompt = f"""
+        Please generate a comprehensive Methods section for the clinical trial manuscript in file: {file_name}
+        
+        Base your Methods section on the following endpoint information:
+        
+        {all_endpoint_details}
+        
+        Please follow these guidelines:
+        
+        1. Organize the information under clear headings (e.g., 'Study Design,' 'Participants,' 'Interventions,' 'Outcomes,' etc.)
+        2. Ensure all the selected endpoints are properly described in the appropriate sections
+        3. Use academic language and appropriate terminology
+        4. Reference standard guidelines where appropriate (e.g., CONSORT)
+        5. Provide enough detail that another researcher could replicate or cite the study
+        6. Integrate the information from different endpoints in a coherent and logical manner
+        """
+        
+        # Run the query to generate methods content
+        methods_content, citations, thread_id = assistant_session.run_query(methods_prompt, dependent=False)
+        
+        return jsonify({
+            "methods_content": methods_content,
+            "citations": citations,
+            "thread_id": thread_id,
+            "file_name": file_name
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error in generate_methods_from_endpoints: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+
+
+
