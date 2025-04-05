@@ -331,3 +331,147 @@ def get_endpoints_by_category(db, file_name, category=None):
                         except Exception as e:
                             st.error(f"An error occurred: {e}")
 
+
+
+
+
+
+
+
+
+    elif section_name == "methods":
+        # Initialize session state for selected endpoints if not already done
+        if "selected_endpoints_for_methods" not in st.session_state:
+            st.session_state["selected_endpoints_for_methods"] = []
+        
+        # Add a button to load endpoints
+        if st.button("Load Saved Endpoints for Methods", key="load_endpoints_for_methods"):
+            try:
+                if st.session_state.file_name:
+                    # Make request to get all endpoints for this file
+                    params = {
+                        'file_name': st.session_state.file_name
+                    }
+                    
+                    response = requests.get(f"{API_BASE_URL}/methods/get_endpoints_for_methods", params=params)
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        categorized_endpoints = result.get("endpoints", {})
+                        
+                        # Store in session state
+                        st.session_state["methods_categorized_endpoints"] = categorized_endpoints
+                        
+                        if categorized_endpoints:
+                            st.success(f"Loaded endpoints for {len(categorized_endpoints)} categories")
+                        else:
+                            st.info("No saved endpoints found. Please generate some endpoints first.")
+                    else:
+                        st.error(f"Error loading endpoints: {response.json().get('error', 'Unknown error')}")
+                else:
+                    st.error("Please upload a file first")
+            except Exception as e:
+                st.error(f"An error occurred: {e}")
+        
+        # If endpoints are loaded, display them as checkboxes
+        if "methods_categorized_endpoints" in st.session_state and st.session_state["methods_categorized_endpoints"]:
+            st.subheader("Select Endpoints to Include in Methods Section")
+            
+            # Display endpoints by category
+            for category, endpoints in st.session_state["methods_categorized_endpoints"].items():
+                with st.expander(f"Category: {category}"):
+                    st.write(f"**{category}** - {len(endpoints)} endpoints available")
+                    
+                    for endpoint in endpoints:
+                        endpoint_id = endpoint.get("endpoint_id")
+                        endpoint_name = endpoint.get("endpoint_name")
+                        
+                        # Create a unique key for this checkbox
+                        checkbox_key = f"methods_endpoint_{endpoint_id}"
+                        
+                        # Check if this endpoint is already selected
+                        is_selected = endpoint_id in [e.get("endpoint_id") for e in st.session_state["selected_endpoints_for_methods"]]
+                        
+                        # Display checkbox
+                        if st.checkbox(
+                            f"{endpoint_name}",
+                            value=is_selected,
+                            key=checkbox_key
+                        ):
+                            # If checked and not already in the list, add it
+                            if not is_selected:
+                                st.session_state["selected_endpoints_for_methods"].append(endpoint)
+                        else:
+                            # If unchecked and in the list, remove it
+                            if is_selected:
+                                st.session_state["selected_endpoints_for_methods"] = [
+                                    e for e in st.session_state["selected_endpoints_for_methods"] 
+                                    if e.get("endpoint_id") != endpoint_id
+                                ]
+            
+            # Display selected endpoints
+            if st.session_state["selected_endpoints_for_methods"]:
+                st.subheader("Selected Endpoints")
+                for idx, endpoint in enumerate(st.session_state["selected_endpoints_for_methods"]):
+                    st.write(f"{idx+1}. **{endpoint.get('endpoint_name')}** ({endpoint.get('endpoint_id').split('_')[1]})")
+                
+                # Button to generate methods from selected endpoints
+                if st.button("Generate Methods from Selected Endpoints"):
+                    try:
+                        # Prepare payload
+                        payload = {
+                            'assistant_id': st.session_state.assistant_id,
+                            'vector_id': st.session_state.vector_id,
+                            'endpoints': st.session_state["selected_endpoints_for_methods"]
+                        }
+                        
+                        # Call the API
+                        response = requests.post(f"{API_BASE_URL}/methods/generate_methods_from_endpoints", json=payload)
+                        
+                        if response.status_code == 200:
+                            result = response.json()
+                            methods_content = result.get("methods_content", "")
+                            citations = result.get("citations", [])
+                            thread_id = result.get("thread_id", None)
+                            
+                            # Store the results in session state
+                            st.session_state["methods"] = methods_content
+                            st.session_state[f"methods_citations"] = citations
+                            st.session_state[f"methods_thread_id"] = thread_id
+                            
+                            # Show the generated content
+                            st.success("Methods section generated successfully!")
+                            st.subheader("Generated Methods Section")
+                            st.text_area(
+                                "Methods Content",
+                                methods_content,
+                                height=400,
+                                key="generated_methods_content"
+                            )
+                            
+                            # Display citations if available
+                            if citations:
+                                st.subheader("Citations")
+                                for i, citation in enumerate(citations):
+                                    st.markdown(f"{i+1}. {citation}")
+                            
+                            # Add a button to save the generated methods
+                            if st.button("Save Generated Methods"):
+                                save_payload = {
+                                    'file_name': st.session_state.file_name,
+                                    'user_query': "Generated from selected endpoints",
+                                    'assistant_response': methods_content,
+                                    'citations': citations,
+                                    'thread_id': thread_id
+                                }
+                                
+                                save_response = requests.post(f"{API_BASE_URL}/methods/save_methods_response", json=save_payload)
+                                
+                                if save_response.status_code == 200:
+                                    st.success("Methods saved successfully!")
+                                else:
+                                    st.error(f"Error saving methods: {save_response.json().get('error', 'Unknown error')}")
+                        else:
+                            st.error(f"Error generating methods: {response.json().get('error', 'Unknown error')}")
+                    except Exception as e:
+                        st.error(f"An error occurred: {e}")
