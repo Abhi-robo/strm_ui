@@ -475,3 +475,79 @@ def get_endpoints_by_category(db, file_name, category=None):
                             st.error(f"Error generating methods: {response.json().get('error', 'Unknown error')}")
                     except Exception as e:
                         st.error(f"An error occurred: {e}")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@methods_bp.route('/get_endpoints_for_methods', methods=['GET'])
+def get_endpoints_for_methods():
+    """
+    Retrieve all endpoints from the endpoints collection for display in the Methods section.
+    """
+    try:
+        # Get file_name from query parameters
+        file_name = request.args.get('file_name')
+        
+        if not file_name:
+            return jsonify({"error": "file_name parameter is required"}), 400
+            
+        # Connect to MongoDB
+        db = connect_mongo()
+        
+        # Access the endpoints collection
+        collection = db["endpoints"]
+        
+        # Query all endpoints for this file
+        endpoints = list(collection.find({"file_name": file_name}).sort("endpoint_category", 1))
+        
+        # Process endpoints into a more structured format by category
+        categorized_endpoints = {}
+        
+        for endpoint in endpoints:
+            # Convert ObjectId to string for JSON serialization
+            if "_id" in endpoint:
+                endpoint["_id"] = str(endpoint["_id"])
+            
+            # Get the category
+            category = endpoint.get("endpoint_category")
+            
+            # Initialize the category list if it doesn't exist
+            if category not in categorized_endpoints:
+                categorized_endpoints[category] = []
+            
+            # Add the endpoint to its category
+            categorized_endpoints[category].append({
+                "endpoint_id": endpoint.get("endpoint_id"),
+                "endpoint_name": endpoint.get("endpoint_name"),
+                "assistant_response": endpoint.get("assistant_response"),
+                "updated_at": endpoint.get("updated_at").isoformat() if endpoint.get("updated_at") else None
+            })
+        
+        return jsonify({
+            "endpoints": categorized_endpoints,
+            "count": len(endpoints)
+        }), 200
+    
+    except Exception as e:
+        logger.error(f"Error in get_endpoints_for_methods: {str(e)}")
+        return jsonify({"error": str(e)}), 500
