@@ -1,0 +1,200 @@
+import streamlit as st
+import hashlib
+
+# Set page configuration
+st.set_page_config(
+    page_title="Endpoint Selector Demo",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# Title
+st.title("Endpoint Selector Demo")
+st.markdown("This is a demonstration of the endpoint selection functionality from the CRP application.")
+
+# Initialize session state variables
+if "user_query" not in st.session_state:
+    st.session_state["user_query"] = ""
+if "selected_bullet" not in st.session_state:
+    st.session_state["selected_bullet"] = None
+if "selected_category" not in st.session_state:
+    st.session_state["selected_category"] = None
+    
+# Function to generate a unique key for each checkbox
+def generate_unique_key(*args):
+    # Use a hash of the arguments to create a unique key
+    return hashlib.md5("".join(map(str, args)).encode('utf-8')).hexdigest()
+
+# Function to display endpoints without recursion - now only captures selections without showing prompts
+def display_endpoints(name, item):
+    selected_bullet = None  # To store the selected bullet point
+    selected_category = None  # To store the selected category
+    show_button = False  # To track if we should show the button
+
+    stack = [(name, item)]  # Initialize stack with the root level
+    while stack:
+        current_name, current_item = stack.pop()  # Pop from stack for processing
+        
+        if isinstance(current_item, dict):
+            # If it's a dictionary, loop through the key-value pairs
+            st.subheader(current_name)  # Display the category name (subheader)
+            selected_category = current_name  # Capture the selected category
+            for sub_key, sub_value in current_item.items():
+                if isinstance(sub_value, dict):
+                    # If the value is another dictionary, add to stack
+                    stack.append((f"{sub_key} (nested dictionary)", sub_value))
+                elif isinstance(sub_value, list):
+                    # If the value is a list, process it directly
+                    st.subheader(f"{sub_key} (list)")
+                    for list_item in sub_value:
+                        list_item_key = generate_unique_key(sub_key, list_item)  # Ensure unique key for list items
+                        if st.checkbox(str(list_item), key=list_item_key):
+                            selected_bullet = str(list_item)  # Capture the selected item
+                            show_button = True  # User selected a checkbox
+                            # Store the selection in session state
+                            st.session_state["selected_bullet"] = selected_bullet
+                            st.session_state["selected_category"] = selected_category
+                else:
+                    # Otherwise, display the key and value as a checkbox
+                    sub_key_value_key = generate_unique_key(sub_key, sub_value)  # Ensure unique key for key-value pairs
+                    if st.checkbox(f"{sub_key}: {sub_value}", key=sub_key_value_key):
+                        selected_bullet = f"{sub_key}: {sub_value}"  # Capture the selected bullet
+                        show_button = True  # User selected a checkbox
+                        # Store the selection in session state
+                        st.session_state["selected_bullet"] = selected_bullet
+                        st.session_state["selected_category"] = selected_category
+                        
+        elif isinstance(current_item, list):
+            # If it's a list, display each item as a checkbox
+            st.subheader(current_name)  # Display the category name (subheader)
+            selected_category = current_name  # Capture the selected category
+            for list_item in current_item:
+                list_item_key = generate_unique_key(current_name, list_item)  # Ensure unique key for list items
+                if st.checkbox(str(list_item), key=list_item_key):
+                    selected_bullet = str(list_item)  # Capture the selected item
+                    show_button = True  # User selected a checkbox
+                    # Store the selection in session state
+                    st.session_state["selected_bullet"] = selected_bullet
+                    st.session_state["selected_category"] = selected_category
+        
+        else:
+            # Base case: Directly display the name and item as a checkbox
+            base_key = generate_unique_key(current_name, current_item)  # Ensure unique key for base case
+            if st.checkbox(f"{current_name}: {current_item}", key=base_key):
+                selected_bullet = f"{current_name}: {current_item}"  # Capture the selected bullet
+                show_button = True  # User selected a checkbox
+                # Store the selection in session state
+                st.session_state["selected_bullet"] = selected_bullet
+                st.session_state["selected_category"] = selected_category
+
+    # Return the show_button flag to control button visibility
+    return show_button
+
+# Sample data structure for endpoints
+# This represents what would be parsed from the "endpoints = {...}" in the original code
+sample_endpoints = {
+    "Efficacy": {
+        "Primary": ["Overall Survival", "Progression-Free Survival"],
+        "Secondary": ["Response Rate", "Duration of Response", "Time to Progression"]
+    },
+    "Safety": ["Adverse Events", "Serious Adverse Events", "Treatment Discontinuations"],
+    "Patient-Reported Outcomes": ["Quality of Life", "Symptom Burden", "Functional Status"],
+    "Biomarkers": {
+        "Predictive": ["Gene Expression", "Mutation Status"],
+        "Pharmacodynamic": ["Target Engagement", "Pathway Inhibition"]
+    }
+}
+
+# Sidebar with options
+st.sidebar.title("Options")
+show_data = st.sidebar.checkbox("Show Raw Data", value=False)
+if show_data:
+    st.sidebar.json(sample_endpoints)
+
+# Main section
+st.header("Endpoints Selection")
+st.write("Select an endpoint from the categories below:")
+
+# Display the endpoints using our function
+show_button = False
+for major_category, endpoints_dict in sample_endpoints.items():
+    show_button |= display_endpoints(major_category, endpoints_dict)
+
+# Now show the prompt selection AFTER all endpoints have been displayed
+if show_button:
+    st.markdown("---")
+    st.header("Prompt Selection")
+    
+    selected_bullet = st.session_state["selected_bullet"]
+    selected_category = st.session_state["selected_category"]
+    
+    st.write("You selected:", selected_bullet)
+    
+    # Check if the selected category is 'safety' and display appropriate prompts
+    is_safety_endpoint = selected_category.lower() == "safety"
+    
+    if is_safety_endpoint:
+        prompt_selection = st.selectbox(
+            "Select a Prompt for Safety Endpoint",
+            [
+                f"Prompt 1. Please can you describe the {selected_bullet} results relating to safety and tolerability. Referring to text and tables describing any safety or tolerability, please can you draft a paragraph describing these results and summarizing the data for it. Please can you add references to any tables or figures that would be relevant to include in a paper. Please can you provide the output as bullet points. ",
+                
+                f"Prompt 2: Please can you provide the following data for each study arm as a bulleted list, relating to safety and tolerability, if it is available:\n"
+                "1. Patient years of exposure\n"
+                "2. The number and proportion of patients reporting at least one:\n"
+                "    a. Adverse event\n"
+                "    b. Treatment-emergent adverse event\n"
+                "    c. Serious adverse event\n"
+                "    d. Adverse event resulting in study discontinuation\n"
+                "    e. Death\n"
+                "3. The number and proportion of patients reporting at least one: Severe adverse event (please note that serious adverse events are different from severe adverse events)",
+                
+                f"Prompt 3: For each study arm please can you provide details of the 10 most common treatment emergent adverse events. If an adverse event is common in any one arm please provide the numbers for that adverse event for all study arms.",
+                
+                f"Prompt 4: For each study arm please can you provide details of the serious adverse events that were reported. For each and every serious adverse event please provide the number and proportion of patients reporting it and provide a summary of the outcomes of the events.",
+                
+                f"Prompt 5: For each study arm please can you provide details of the adverse events leading to discontinuation that were reported. For each and every adverse event please provide the number and proportion of patients reporting it and provide a summary of the outcomes of the events."
+            ]
+        )
+    else:
+        prompt_selection = st.selectbox(
+            "Select a Prompt",
+            [
+                f"Prompt 1: Please can you describe the results for the endpoint of {selected_bullet}. Refer to text and tables describing all analyses, please can you draft a paragraph describing this endpoint and summarizing the outcomes for it. Please can you add references to any tables or figures that would be relevant to include in a paper. Please can you provide the output as bullet points",
+
+                f"Prompt 2: Please can you describe the results for any subgroup analyses of the endpoint of {selected_bullet}. Refer to text and tables describing all analyses, please can you draft a paragraph describing this endpoint and summarizing the outcomes for it. Please can you add references to any tables or figures that would be relevant to include in a paper. Please can you provide the output as bullet points"
+            ]
+        )
+    
+    st.write("Selected Prompt:")
+    st.markdown(prompt_selection)
+    
+    # Set user_query as the selected prompt
+    st.session_state['user_query'] = prompt_selection  # Save the selected prompt as user_query
+
+    # Show a button to process the selected endpoint
+    if st.button("Process Selected Endpoint"):
+        user_query = st.session_state.get('user_query', '')
+        
+        if user_query:
+            st.success("Endpoint processing initiated!")
+            st.info(f"In the full application, this would send the following query to the API:")
+            st.code(user_query)
+        else:
+            st.error("No prompt selected. Please select a prompt before processing.")
+
+# Instructions
+# with st.expander("How to use this demo"):
+#     st.markdown("""
+#     **Instructions**:
+#     1. Browse through the categories and select a checkbox for an endpoint of interest
+#     2. After selection, the prompt templates will appear at the bottom of the page
+#     3. Choose a prompt template from the dropdown
+#     4. Click "Process Selected Endpoint" to simulate processing
+    
+#     **Notes**:
+#     - Safety endpoints show different prompt options than other endpoints
+#     - The prompt selection now appears at the end of the page after all endpoints
+#     - In the full application, this would trigger an API call to process the selected prompt
+#     - The raw data structure can be viewed by checking "Show Raw Data" in the sidebar
+#     """) 
