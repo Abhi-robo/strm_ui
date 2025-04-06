@@ -1,3 +1,15 @@
+AttributeError: 'NoneType' object has no attribute 'values'
+    endpoint_count = sum(len(endpoints) for endpoints in st.session_state["methods_categorized_endpoints"].values())
+                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+
+
+
+
+
+
+
 import re
 import streamlit as st
 import requests
