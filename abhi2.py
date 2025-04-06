@@ -57,6 +57,9 @@ def initialize_session_state():
     if "selected_endpoints_for_methods" not in st.session_state:
         st.session_state["selected_endpoints_for_methods"] = []
     
+    if "methods_categorized_endpoints" not in st.session_state:
+        st.session_state["methods_categorized_endpoints"] = {}
+    
     if "methods_checkbox_states" not in st.session_state:
         st.session_state["methods_checkbox_states"] = {}
     
@@ -125,7 +128,7 @@ def clear_session():
     
     # Methods-specific session states to clear
     st.session_state["selected_endpoints_for_methods"] = []
-    st.session_state["methods_categorized_endpoints"] = {} if "methods_categorized_endpoints" in st.session_state else None
+    st.session_state["methods_categorized_endpoints"] = {}  # Always initialize as empty dict, not None
     
     for methods_key in ["methods_selected_bullet", "methods_selected_category", "methods_response", 
                       "methods_citations", "methods_user_query", "methods_thread_id", 
@@ -661,12 +664,17 @@ def handle_section(section_name, display_name):
         with col1:
             load_button = st.button("Load Saved Endpoints", key="load_endpoints_for_methods", type="primary")
         with col2:
-            if "methods_categorized_endpoints" in st.session_state:
-                endpoint_count = sum(len(endpoints) for endpoints in st.session_state["methods_categorized_endpoints"].values())
-                st.markdown(f"**{endpoint_count}** endpoints loaded from **{len(st.session_state['methods_categorized_endpoints'])}** categories")
+            # Safely access methods_categorized_endpoints even if it's None
+            if st.session_state.get("methods_categorized_endpoints"):
+                endpoints_dict = st.session_state["methods_categorized_endpoints"]
+                endpoint_count = sum(len(endpoints) for endpoints in endpoints_dict.values())
+                st.markdown(f"**{endpoint_count}** endpoints loaded from **{len(endpoints_dict)}** categories")
                 # Show the file we're working with
                 if st.session_state.file_name:
                     st.markdown(f"File: **{st.session_state.file_name}**")
+            else:
+                # Display a message if no endpoints are loaded yet
+                st.markdown("No endpoints loaded yet. Click the button to load endpoints.")
         
         if load_button:
             try:
@@ -709,11 +717,15 @@ def handle_section(section_name, display_name):
             """)
 
         # If endpoints are loaded, display them as checkboxes
-        if "methods_categorized_endpoints" in st.session_state and st.session_state["methods_categorized_endpoints"]:
+        if st.session_state.get("methods_categorized_endpoints") and len(st.session_state["methods_categorized_endpoints"]) > 0:
             st.subheader("Select Endpoints to Include in Methods Section")
             
             # Display endpoints by category
             for category, endpoints in st.session_state["methods_categorized_endpoints"].items():
+                # Skip empty categories
+                if not endpoints:
+                    continue
+                    
                 # Display category as a heading
                 st.subheader(category)  # Use subheader instead of markdown for consistency with display_endpoints
                 
@@ -721,6 +733,10 @@ def handle_section(section_name, display_name):
                 for endpoint in endpoints:
                     endpoint_id = endpoint.get("endpoint_id")
                     endpoint_name = endpoint.get("endpoint_name")
+                    
+                    # Skip endpoints with missing data
+                    if not endpoint_id or not endpoint_name:
+                        continue
                     
                     # Create a unique key for this checkbox
                     checkbox_key = f"methods_endpoint_{endpoint_id}"
@@ -862,24 +878,33 @@ def handle_section(section_name, display_name):
                     
                     # Save Response Button
                     if st.button("Save Response", key="save_methods_response_button"):
-                        payload = {
-                            'file_name': st.session_state.file_name,
-                            'user_query': st.session_state.methods_user_query,
-                            'assistant_response': st.session_state.methods_response,
-                            'citations': st.session_state.methods_citations,
-                            'thread_id': st.session_state.methods_thread_id,
-                            'selected_bullet': st.session_state.methods_selected_bullet,
-                            'selected_category': st.session_state.methods_selected_category
-                        }
-                        try:
-                            # Use the endpoint-specific API
-                            save_response = requests.post(f"{API_BASE_URL}/save_endpoint_response", json=payload)
-                            if save_response.status_code == 200:
-                                st.success("Endpoint response saved successfully!")
-                            else:
-                                st.error(f"Error saving response: {save_response.json().get('error', 'Unknown error')}")
-                        except Exception as e:
-                            st.error(f"An error occurred: {e}")
+                        # Validate that we have the required data
+                        if not st.session_state.get("file_name"):
+                            st.error("No file name available. Please upload a file first.")
+                        elif not st.session_state.get("methods_user_query"):
+                            st.error("No query available. Please select a prompt and run it first.")
+                        elif not st.session_state.get("methods_response"):
+                            st.error("No response available. Please run a prompt first.")
+                        else:
+                            payload = {
+                                'file_name': st.session_state.file_name,
+                                'user_query': st.session_state.methods_user_query,
+                                'assistant_response': st.session_state.methods_response,
+                                'citations': st.session_state.get("methods_citations", []),
+                                'thread_id': st.session_state.get("methods_thread_id"),
+                                'selected_bullet': st.session_state.get("methods_selected_bullet"),
+                                'selected_category': st.session_state.get("methods_selected_category")
+                            }
+                            try:
+                                # Use the endpoint-specific API
+                                save_response = requests.post(f"{API_BASE_URL}/save_endpoint_response", json=payload)
+                                if save_response.status_code == 200:
+                                    st.success("Endpoint response saved successfully!")
+                                else:
+                                    error_msg = save_response.json().get("error", "Unknown error")
+                                    st.error(f"Error saving response: {error_msg}")
+                            except Exception as e:
+                                st.error(f"An error occurred: {e}")
 
             # Display selected endpoints
             if st.session_state["selected_endpoints_for_methods"]:
