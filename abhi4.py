@@ -12,6 +12,19 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
+# Regex-Based Subgroup Prompt Detection
+def is_subgroup_prompt(prompt_text: str) -> bool:
+    """
+    Check if a prompt is related to subgroup analysis using regex.
+    
+    Args:
+        prompt_text: The text of the prompt to check
+        
+    Returns:
+        bool: True if the prompt is related to subgroup analysis, False otherwise
+    """
+    pattern = r"\b(subgroup[s]?|sub-group[s]?|sub group[s]?)\b"
+    return bool(re.search(pattern, prompt_text, flags=re.IGNORECASE))
 
 # Set page configuration
 st.set_page_config(
@@ -1017,19 +1030,5 @@ display_names = ["Results", "Methods", "Introduction", "Discussion", "Conclusion
 for tab, section, display_name in zip(tabs, sections, display_names):
     with tab:
         handle_section(section, display_name) 
-
-# Regex-Based Subgroup Prompt Detection
-def is_subgroup_prompt(prompt_text: str) -> bool:
-    """
-    Check if a prompt is related to subgroup analysis using regex.
-    
-    Args:
-        prompt_text: The text of the prompt to check
-        
-    Returns:
-        bool: True if the prompt is related to subgroup analysis, False otherwise
-    """
-    pattern = r"\b(subgroup[s]?|sub-group[s]?|sub group[s]?)\b"
-    return bool(re.search(pattern, prompt_text, flags=re.IGNORECASE))
 
 
