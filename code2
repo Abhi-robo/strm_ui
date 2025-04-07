@@ -1,0 +1,207 @@
+routes.py
+
+
+
+@app_routes.route('/save_endpoint_response', methods=['POST'])
+def save_endpoint_response():
+    """
+    Save the endpoint data, including the selected endpoint, category, and response to MongoDB.
+    """
+    try:
+        # Parse the data from the request
+        data = request.json
+        file_name = data.get("file_name")
+        user_query = data.get("user_query")
+        assistant_response = data.get("assistant_response")
+        citations = data.get("citations", [])
+        thread_id = data.get("thread_id")
+        selected_bullet = data.get("selected_bullet")
+        selected_category = data.get("selected_category")
+        is_subgroup = data.get("is_subgroup", False)  # Get the is_subgroup flag
+
+        # Validate required fields
+        if not all([file_name, user_query, assistant_response, selected_bullet, selected_category]):
+            return jsonify({
+                "error": "Missing required fields. Please provide file_name, user_query, assistant_response, selected_bullet, and selected_category."
+            }), 400
+            
+        # Connect to MongoDB
+        db = connect_mongo()
+        
+        # Save the endpoint data using our dedicated function
+        doc_id = save_endpoint_data(
+            db,
+            file_name,
+            selected_category,
+            selected_bullet,
+            user_query,
+            assistant_response,
+            citations,
+            thread_id,
+            is_subgroup  # Pass the is_subgroup parameter
+        )
+
+        return jsonify({
+            "message": "Endpoint response saved successfully!",
+            "document_id": doc_id
+        }), 200
+    
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
+database_ervicee.py
+
+
+def save_endpoint_data(db, file_name, category, endpoint_text, prompt, response, citations, thread_id, is_subgroup=False):
+    """
+    Save endpoint data to MongoDB with support for multiple responses per endpoint.
+    
+    Args:
+        db: MongoDB database connection
+        file_name: Name of the file
+        category: Category of the endpoint (e.g., 'primary', 'main_secondary')
+        endpoint_text: Text of the endpoint
+        prompt: The prompt used to generate the response
+        response: The generated response
+        citations: List of citations
+        thread_id: Thread ID for the conversation
+        is_subgroup: Boolean indicating if this is a subgroup analysis response
+    
+    Returns:
+        str: Document ID of the saved/updated endpoint
+    """
+    from datetime import datetime
+    from bson import ObjectId
+    
+    # Create the response object
+    response_obj = {
+        "type": "subgroup" if is_subgroup else "main",
+        "prompt": prompt,
+        "response": response,
+        "citations": citations,
+        "thread_id": thread_id,
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow()
+    }
+    
+    # Find existing endpoint document
+    existing_doc = db.endpoints.find_one({
+        "file_name": file_name,
+        "endpoint_text": endpoint_text,
+        "category": category
+    })
+    
+    if existing_doc:
+        # Check if a response of the same type already exists
+        response_type = "subgroup" if is_subgroup else "main"
+        existing_response_index = None
+        
+        for i, resp in enumerate(existing_doc.get("responses", [])):
+            if resp.get("type") == response_type:
+                existing_response_index = i
+                break
+        
+        if existing_response_index is not None:
+            # Update existing response
+            db.endpoints.update_one(
+                {
+                    "_id": existing_doc["_id"],
+                    f"responses.{existing_response_index}.type": response_type
+                },
+                {
+                    "$set": {
+                        f"responses.{existing_response_index}": response_obj,
+                        "updated_at": datetime.utcnow()
+                    }
+                }
+            )
+        else:
+            # Append new response
+            db.endpoints.update_one(
+                {"_id": existing_doc["_id"]},
+                {
+                    "$push": {"responses": response_obj},
+                    "$set": {"updated_at": datetime.utcnow()}
+                }
+            )
+        
+        return str(existing_doc["_id"])
+    else:
+        # Create new endpoint document
+        new_doc = {
+            "file_name": file_name,
+            "endpoint_text": endpoint_text,
+            "category": category,
+            "responses": [response_obj],
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }
+        
+        result = db.endpoints.insert_one(new_doc)
+        return str(result.inserted_id) 
+
+
+
+
+
+UI
+
+
+
+                    if st.button("Save Response", key="save_checkbox_response_button"): 
+                        # Create a response object with metadata
+                        response_obj = {
+                            "prompt_text": st.session_state.user_query,
+                            "response": response_text,
+                            "is_subgroup": st.session_state["current_prompt_is_subgroup"],
+                            "citations": citations,
+                            "thread_id": st.session_state.current_checkbox_thread_id
+                        }
+                        
+                        # Add to endpoint responses in session state
+                        if endpoint_key not in st.session_state["endpoint_responses"]:
+                            st.session_state["endpoint_responses"][endpoint_key] = []
+                        
+                        # Add the new response to the list
+                        st.session_state["endpoint_responses"][endpoint_key].append(response_obj)
+                        
+                        # Prepare payload for backend
+                        payload = {
+                            'file_name': st.session_state.file_name,
+                            'user_query': st.session_state.user_query,
+                            'assistant_response': response_text,
+                            'citations': citations,
+                            'thread_id': st.session_state.current_checkbox_thread_id,
+                            'selected_bullet': st.session_state.selected_bullet,
+                            'selected_category': st.session_state.selected_category,
+                            'is_subgroup': st.session_state["current_prompt_is_subgroup"]
+                        }
+                        try:
+                            # Use the endpoint-specific API
+                            save_response = requests.post(f"{API_BASE_URL}/save_endpoint_response", json=payload)
+                            if save_response.status_code == 200:
+                                st.success("Endpoint response saved successfully!")
+                            else:
+                                st.error(f"Error saving response: {save_response.json().get('error', 'Unknown error')}")
+                        except Exception as e:
+                            st.error(f"An error occurred: {e}")
+
+
+
+
+
+
+
+
+
+              
+
+
+
+
+
+
+
+          
